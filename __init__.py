@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 
 """Library for performing speech recognition with Baidu Speech Recognition API."""
 
@@ -48,9 +49,9 @@ try:
             self.device_index = device_index
             self.format = pyaudio.paInt16 # 16-bit int sampling
             self.SAMPLE_WIDTH = pyaudio.get_sample_size(self.format)
-            self.RATE = 44100 # sampling rate in Hertz
+            self.RATE = 16000 # sampling rate in Hertz
             self.CHANNELS = 1 # mono audio
-            self.CHUNK = 4096 # number of frames stored in each buffer
+            self.CHUNK = 1024 # number of frames stored in each buffer
 
             self.audio = None
             self.stream = None
@@ -183,7 +184,7 @@ class Recognizer(AudioSource):
             os.chmod(flac_converter, stat_info.st_mode | stat.S_IEXEC)
         except OSError: pass
 
-        process = subprocess.Popen("\"%s\" --sample-rate=16000 --stdout --totally-silent --best -" % flac_converter, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+        process = subprocess.Popen("\"%s\" --stdout --totally-silent --best -" % flac_converter, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
         flac_data, stderr = process.communicate(wav_data)
         return flac_data
 
@@ -301,7 +302,7 @@ class Recognizer(AudioSource):
         
         return AudioData(source.RATE, self.samples_to_flac(source, frame_data))
 
-    def recognize(self, audio_data, show_all = False):
+    def recognize(self, audio_data):
         """
         Performs speech recognition, using the Google Speech Recognition API, on ``audio_data`` (an ``AudioData`` instance).
 
@@ -314,8 +315,20 @@ class Recognizer(AudioSource):
         assert isinstance(audio_data, AudioData), "Data must be audio data"
 
         import base64
-        url = "http://vop.baidu.com/server_api?cuid=%s&token=%s" % ('6c40089c2342', self.token)
-        self.request = Request(url, data = urlencode(audio_data.data), headers = {"Content-Type": "audio/x-flac;rate=16000"})
+        #url = "http://vop.baidu.com/server_api?cuid=%s&token=%s" % ('6c40089c2342', self.token)
+        url = "http://vop.baidu.com/server_api"
+
+        data = {
+                "format": "x-flac",
+                "lan": self.language,
+                "token": self.token,
+                "len": len(audio_data.data),
+                "rate": audio_data.rate,
+                "speech": base64.b64encode(audio_data.data),
+                "cuid": '93489083242',
+                "channel": 1,
+                }
+        self.request = Request(url, data = json.dumps(data), headers = {"Content-Type": "application/json"})
         
         # check for invalid key response from the server
         try:
@@ -328,9 +341,9 @@ class Recognizer(AudioSource):
 
         json_result = json.loads(response_text)
         if int(json_result['err_no']) != 0:
-            return json_result['err_msg']
+            raise LookupError(json_result['err_msg'])
         else:
-            return json_result['result']
+            return json_result['result'][0]
     
     def listen_in_background(self, source, callback):
         """
@@ -379,8 +392,6 @@ if __name__ == "__main__":
             os.system('say Got it! Now to recognize it')
         try:
             text = r.recognize(audio)
-            print("You said " + text)
-            if system == 'Darwin':
-                os.system('say you said' + text)
+            print 'You said ' + text
         except LookupError:
             print("Oops! Didn't catch that")
