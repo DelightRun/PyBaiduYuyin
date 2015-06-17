@@ -11,6 +11,11 @@ cite:
     
     Zhang, Anthony. 2015. *Speech Recognition* (version 1.4).
     
+Requirement
+===========
+
++ PyAudio
+
 Usage
 =====
 
