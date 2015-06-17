@@ -4,7 +4,7 @@
 """Library for performing speech recognition with Baidu Speech Recognition API."""
 
 __author__ = "Changxu Wang"
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 __license__ = "BSD"
 
 import io, os, subprocess, wave
@@ -18,6 +18,16 @@ except ImportError: # otherwise, use python3 module
     from urllib.request import Request, urlopen
     from urllib.error import URLError
     from urllib.parse import urlencode
+
+DEFAULT_APP_KEY = "BElGG5nsGL8oevAa3gMzMk4Y"
+DEFAULT_SECRET_KEY = "uVla1FdpQ2HgmojeY9e6pobrS3lRGaeY"
+
+def GetToken(app_key, secret_key):
+    data = {'grant_type': 'client_credentials', 'client_id': app_key, 'client_secret': secret_key}
+    response = urlopen("https://openapi.baidu.com/oauth/2.0/token", data=urlencode(data))
+    response_text = response.read().decode("utf-8")
+    json_result = json.loads(response_text)
+    return json_result['access_token']
 
 #wip: filter out clicks and other too short parts
 
@@ -118,20 +128,115 @@ class AudioData(object):
         self.rate = rate
         self.data = data
 
+class TTS(object):
+    def __init__(self, language = "zh", app_key = DEFAULT_APP_KEY, secret_key = DEFAULT_SECRET_KEY):
+        """
+        Create a new ``TTS`` instance, which represents a collection of text-to-speech functionality
+
+        @:param language: language, ``en`` for English, ``zh`` for Chinese
+        @:param app_key: Baidu App Key, the default value should only be used for test
+        @:param secret_key: Baidu Secret Key, the default value should only be used for test
+        """
+        assert isinstance(language, str), "Language code must be a string"
+        assert isinstance(app_key, str), "Key must be a string"
+        assert isinstance(secret_key, str), "Key must be a string"
+        self.app_key = app_key
+        self.secret_key = secret_key
+        self.language = language
+
+        self.energy_threshold = 300 # minimum audio energy to consider for recording
+        self.dynamic_energy_threshold = True
+        self.dynamic_energy_adjustment_damping = 0.15
+        self.dynamic_energy_ratio = 1.5
+        self.pause_threshold = 0.8 # seconds of quiet time before a phrase is considered complete
+        self.quiet_duration = 0.5 # amount of quiet time to keep on both sides of the recording
+
+        self.token = GetToken(self.app_key, self.secret_key)
+
+    def say(self, text, spd=5, pit=5, vol=5, per=0):
+        """
+        Perform TTS on the input text ``text``.
+
+        @:param text: text to translation
+        @:param spd: [optional] speed, range from 0 to 9
+        @:param pit: [optional] pitch, 0-9
+        @:param vol: [optional] volumn, 0-9
+        @:param person: [optional] 0 for female, 1 for male
+        """
+        if len(text) > 1024:
+            raise KeyError("Text length must less than 1024 bytes")
+        url = "http://tsn.baidu.com/text2audio"
+
+        data = {
+                "tex": text,
+                "lan": self.language,
+                "tok": self.token,
+                "ctp": 1,
+                "cuid": '93489083242',
+                "spd": spd,
+                "pit": pit,
+                "vol": vol,
+                "per": per,
+                }
+        self.request = Request(url, data = urlencode(data))
+
+        # check error
+        try:
+            response = urlopen(self.request)
+        except URLError:
+            raise IndexError("No internet connection available to transfer audio data")
+        except:
+            raise KeyError("Server wouldn't respond (invalid key or quota has been maxed out)")
+
+        content_type = response.info().getheader('Content-Type')
+        if content_type.startswith('application/json'):
+            response_text = response.read().decode("utf-8")
+            json_result = json.loads(response_text)
+            raise LookupError("%d - %s" % (json_result['err_no'], json_result['err_msg']))
+        elif content_type.startswith('audio/mp3'):
+            self.play_mp3(response.read())
+
+    def play_mp3(self, mp3_data):
+        import platform, os, stat
+        # determine which player executable to use
+        system = platform.system()
+        path = os.path.dirname(os.path.abspath(__file__)) # directory of the current module file, where all the FLAC bundled binaries are stored
+        player = shutil_which("mpg123") # check for installed version first
+        if player is None: # flac utility is not installed
+            if system == "Windows" and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]: # Windows NT, use the bundled FLAC conversion utility
+                player = os.path.join(path, "player", "mpg123-win32.exe")
+            elif system == "Linux" and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]:
+                player = os.path.join(path, "player", "mpg123-linux")
+            elif system == 'Darwin' and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]:
+                player = os.path.join(path, "player", "mpg123-mac")
+            else:
+                raise OSError("MP3 player utility not available - consider installing the MPG123 command line application using `brew install mpg123` or your operating system's equivalent")
+
+        try:
+            stat_info = os.stat(player)
+            os.chmod(player, stat_info.st_mode | stat.S_IEXEC)
+        except OSError:
+            pass
+
+        process = subprocess.Popen("\"%s\" -q -" % player, stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+        play_info, stderr = process.communicate(mp3_data)
+        return play_info
+
+
 class Recognizer(AudioSource):
-    def __init__(self, language = "zh", app_id = "BElGG5nsGL8oevAa3gMzMk4Y", secret_id = "uVla1FdpQ2HgmojeY9e6pobrS3lRGaeY"):
+    def __init__(self, language = "zh", app_key = DEFAULT_APP_KEY, secret_key = DEFAULT_SECRET_KEY):
         """
         Creates a new ``Recognizer`` instance, which represents a collection of speech recognition functionality.
 
-        The language is determined by ``language``, a standard language code like `"en-US"` or `"en-GB"`, and defaults to US English. A list of supported language codes can be found `here <http://stackoverflow.com/questions/14257598/>`__. Basically, language codes can be just the language (``en``), or a language with a dialect (``en-US``).
-
-        The Google Speech Recognition API key is specified by ``key``. If not specified, it uses a generic key that works out of the box.
+        @:param language: language, ``en`` for English, ``zh`` for Chinese
+        @:param app_key: Baidu App Key, the default value should only be used while testing
+        @:param secret_key: Baidu Secret Key, the default value should only be used while testing
         """
         assert isinstance(language, str), "Language code must be a string"
-        assert isinstance(app_id, str), "Key must be a string"
-        assert isinstance(secret_id, str), "Key must be a string"
-        self.app_id = app_id
-        self.secret_id = secret_id
+        assert isinstance(app_key, str), "Key must be a string"
+        assert isinstance(secret_key, str), "Key must be a string"
+        self.app_id = app_key
+        self.secret_id = secret_key
         self.language = language
 
         self.energy_threshold = 300 # minimum audio energy to consider for recording
@@ -170,11 +275,11 @@ class Recognizer(AudioSource):
         flac_converter = shutil_which("flac") # check for installed version first
         if flac_converter is None: # flac utility is not installed
             if system == "Windows" and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]: # Windows NT, use the bundled FLAC conversion utility
-                flac_converter = os.path.join(path, "flac-win32.exe")
+                flac_converter = os.path.join(path, "flac", "flac-win32.exe")
             elif system == "Linux" and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]:
-                flac_converter = os.path.join(path, "flac-linux-i386")
-            elif system == 'Darwin':
-                flac_converter = os.path.join(path, "flac-mac")
+                flac_converter = os.path.join(path, "flac", "flac-linux")
+            elif system == 'Darwin' and platform.machine() in ["i386", "x86", "x86_64", "AMD64"]:
+                flac_converter = os.path.join(path, "flac", "flac-mac")
             else:
                 raise OSError("FLAC conversion utility not available - consider installing the FLAC command line application using `brew install flac` or your operating system's equivalent")
 
@@ -306,16 +411,11 @@ class Recognizer(AudioSource):
         """
         Performs speech recognition, using the Google Speech Recognition API, on ``audio_data`` (an ``AudioData`` instance).
 
-        Returns the most likely transcription if ``show_all`` is ``False``, otherwise it returns a ``dict`` of all possible transcriptions and their confidence levels.
-
-        Note: confidence is set to 0 if it isn't given by Google
-
-        Also raises a ``LookupError`` exception if the speech is unintelligible, a ``KeyError`` if the key isn't valid or the quota for the key has been maxed out, and ``IndexError`` if there is no internet connection.
+        @:return The most likely text
         """
         assert isinstance(audio_data, AudioData), "Data must be audio data"
 
         import base64
-        #url = "http://vop.baidu.com/server_api?cuid=%s&token=%s" % ('6c40089c2342', self.token)
         url = "http://vop.baidu.com/server_api"
 
         data = {
@@ -337,8 +437,8 @@ class Recognizer(AudioSource):
             raise IndexError("No internet connection available to transfer audio data")
         except:
             raise KeyError("Server wouldn't respond (invalid key or quota has been maxed out)")
-        response_text = response.read().decode("utf-8")
 
+        response_text = response.read().decode("utf-8")
         json_result = json.loads(response_text)
         if int(json_result['err_no']) != 0:
             raise LookupError(json_result['err_msg'])
@@ -376,20 +476,17 @@ def shutil_which(pgm):
             return p
 
 if __name__ == "__main__":
+    t = TTS()
     r = Recognizer()
     m = Microphone()
-    
-    system = 'Darwin'
+
+    t.say("你好，这是一个长句子测试")
 
     while True:
         print("Say something!")
-        if system == 'Darwin':
-            os.system('say say something!')
         with m as source:
             audio = r.listen(source)
         print("Got it! Now to recognize it...")
-        if system == 'Darwin':
-            os.system('say Got it! Now to recognize it')
         try:
             text = r.recognize(audio)
             print 'You said ' + text
