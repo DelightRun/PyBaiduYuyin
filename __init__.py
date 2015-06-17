@@ -480,7 +480,7 @@ if __name__ == "__main__":
     r = Recognizer()
     m = Microphone()
 
-    t.say("你好，这是一个长句子测试")
+    t.say("你好，这里是百度语音识别模块测试")
 
     while True:
         print("Say something!")
