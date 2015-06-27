@@ -411,7 +411,7 @@ class Recognizer(AudioSource):
         """
         Performs speech recognition, using the Google Speech Recognition API, on ``audio_data`` (an ``AudioData`` instance).
 
-        @:return The most likely text
+        Return the most likely text
         """
         assert isinstance(audio_data, AudioData), "Data must be audio data"
 
