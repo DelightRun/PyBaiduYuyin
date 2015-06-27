@@ -20,7 +20,7 @@ setup(
     author=PyBaiduYuyin.__author__,
     author_email="wang_changxu@icloud.com",
     description=PyBaiduYuyin.__doc__,
-    long_description=open("README.rst").read(),
+    long_description=open("README.md").read(),
     license=PyBaiduYuyin.__license__,
     keywords="baidu voice service",
     url="https://github.com/DelightRun/PyBaiduYuyin#readme",
