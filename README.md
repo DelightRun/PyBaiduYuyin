@@ -8,7 +8,7 @@ This project is modified from [SpeechRecognition](https://github.com/Uberi/speec
 Requirement
 ===========
 
-+ PyAudio
++ [PyAudio](https://people.csail.mit.edu/hubert/pyaudio/) - require manual installation
 
 Install
 =======
