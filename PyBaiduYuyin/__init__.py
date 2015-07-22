@@ -4,7 +4,7 @@
 """Library for performing speech recognition with Baidu Speech Recognition API."""
 
 __author__ = "Changxu Wang"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __license__ = "BSD"
 
 import io, os, subprocess, wave
@@ -268,7 +268,7 @@ class Recognizer(AudioSource):
             finally:  # make sure resources are cleaned up
                 wav_writer.close()
             wav_data = wav_file.getvalue()
-        
+
         # determine which converter executable to use
         system = platform.system()
         path = os.path.dirname(os.path.abspath(__file__)) # directory of the current module file, where all the FLAC bundled binaries are stored
@@ -404,7 +404,7 @@ class Recognizer(AudioSource):
          # obtain frame data
         for i in range(quiet_buffer_count, pause_count): frames.pop() # remove extra quiet frames at the end
         frame_data = b"".join(list(frames))
-        
+
         return AudioData(source.RATE, self.samples_to_flac(source, frame_data))
 
     def recognize(self, audio_data):
@@ -429,7 +429,7 @@ class Recognizer(AudioSource):
                 "channel": 1,
                 }
         self.request = Request(url, data = json.dumps(data), headers = {"Content-Type": "application/json"})
-        
+
         # check for invalid key response from the server
         try:
             response = urlopen(self.request)
@@ -444,7 +444,7 @@ class Recognizer(AudioSource):
             raise LookupError(json_result['err_msg'])
         else:
             return json_result['result'][0]
-    
+
     def listen_in_background(self, source, callback):
         """
         Spawns a thread to repeatedly record phrases from ``source`` (an ``AudioSource`` instance) into an ``AudioData`` instance and call ``callback`` with that ``AudioData`` instance as soon as each phrase are detected.

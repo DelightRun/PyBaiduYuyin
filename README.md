@@ -4,17 +4,16 @@ PyBaiduYuyin
 This project is a wrapper for [Baidu Yuyin(voice) API](http://yuyin.baidu.com/)
 
 This project is modified from [SpeechRecognition](https://github.com/Uberi/speech_recognition), which is published under the 3-clause BSD license.
-    
+
 Requirement
 ===========
 
 + PyAudio
 
-This can be installed by `pip`:
+Install
+=======
 
-~~~{shell}
-$ sudo pip install pyaudio
-~~~
+    $ pip install PyBaiduYuyin
 
 Usage
 =====
@@ -27,11 +26,9 @@ Details can be found in source code.
 
 Example: 
 
-~~~{python}
-import PyBaiduYuyin as pby
-tts = pby.TTS(app_key=YOUR_APP_KEY, secret_key=YOUR_SECRET_KEY)
-tts.say("你好")
-~~~
+    import PyBaiduYuyin as pby
+    tts = pby.TTS(app_key=YOUR_APP_KEY, secret_key=YOUR_SECRET_KEY)
+    tts.say("你好")
 
 ### Recognition
 
